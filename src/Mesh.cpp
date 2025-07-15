@@ -42,7 +42,7 @@ namespace Renderer
 
 			assert(pPkt[1].asU32[3] == gGifTagCopyCode);
 
-			u8* const pGifPkt = LOAD_SECTION_CAST(u8*, pPkt[1].asU32[1]);
+			uint8_t* const pGifPkt = LOAD_SECTION_CAST(uint8_t*, pPkt[1].asU32[1]);
 			Gif_Tag gifTag;
 			gifTag.setTag(pGifPkt, true);
 			return gifTag;
