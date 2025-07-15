@@ -1,4 +1,4 @@
- #include "Mesh.h"
+#include "Mesh.h"
 #include "ed3D.h"
 #include "Log.h"
 #include "renderer.h"
@@ -162,15 +162,8 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 			vtx.STQ.ST[1] = pStq[index].t;
 			vtx.STQ.Q = 1.0f;
 
-			if (pStrip->field_0x2c) {
-				struct Normal15 {
-					int16_t x;
-					int16_t y;
-					int16_t z;
-					int16_t pad;
-				};
-
-				Normal15* pNormal = LOAD_SECTION_CAST(Normal15*, pStrip->field_0x2c);
+			if (pStrip->pNormalBuf) {
+				edVertexNormal* pNormal = LOAD_SECTION_CAST(edVertexNormal*, pStrip->pNormalBuf);
 
 				vtx.normal.fNormal[0] = int15_to_float(pNormal[adjustedIndex].x);
 				vtx.normal.fNormal[1] = int15_to_float(pNormal[adjustedIndex].y);
@@ -227,126 +220,6 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 	//assert(internalVertexBuffer.GetIndexTail() > 0);
 }
 
-void Renderer::Kya::G3D::Strip::KickVertices() const
-{
-	MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::::Strip::KickVertices {} vifListOffset: 0x{:x}", pSimpleMesh->GetName(), pStrip->vifListOffset);
-
-	if (pSimpleMesh->GetName() == gDebugMeshName) {
-		MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::Strip::KickVertices Processing strip name: {}", pSimpleMesh->GetName());
-	}
-
-	char* pVifList = reinterpret_cast<char*>(pStrip) + pStrip->vifListOffset;
-	const uint incPacketSize = ed3DFlushStripGetIncPacket(pStrip, false, false);
-
-	const DrawMode drawMode = GetDrawMode(pStrip);
-
-	char* pStqData = LOAD_SECTION_CAST(char*, pStrip->pSTBuf);
-
-	auto AddVertices = [this, drawMode]() {
-		char* pVtx = VU1Emu::GetVertexDataStart();
-
-		bool bProcessNormal = false;
-
-		if (const int addr = VU1Emu::GetExecVuCodeAddr(); addr == 0xfc || addr == 0x19) {
-			bProcessNormal = true;
-		}
-
-		int* pFlag = reinterpret_cast<int*>(pVtx - 0x10);
-
-		Gif_Tag gifTag;
-		gifTag.setTag((u8*)pVtx, true);
-
-		pVtx += 0x10;
-
-		char* pNormal = pVtx + 0xd80;
-
-		for (int i = 0; i < gifTag.nLoop; i++) {
-			const int addr = VU1Emu::GetExecVuCodeAddr();
-
-			Renderer::GSVertexUnprocessedNormal vtx;
-			memcpy(&vtx.STQ, pVtx, sizeof(vtx.STQ));
-			memcpy(&vtx.RGBA, pVtx + 0x10, sizeof(vtx.RGBA));
-			memcpy(&vtx.XYZFlags, pVtx + 0x20, sizeof(vtx.XYZFlags));
-
-			if (bProcessNormal) {
-				memcpy(&vtx.normal, pNormal, sizeof(vtx.normal));
-
-				vtx.normal.fNormal[0] = int15_to_float(vtx.normal.iNormal[0]);
-				vtx.normal.fNormal[1] = int15_to_float(vtx.normal.iNormal[1]);
-				vtx.normal.fNormal[2] = int15_to_float(vtx.normal.iNormal[2]);
-
-				MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Strip::KickVertices Processing vertex: {}, normal: ({}, {}, {})", i, vtx.normal.fNormal[0], vtx.normal.fNormal[1], vtx.normal.fNormal[2]);
-			}
-			else {
-				memset(&vtx.normal, 0, sizeof(vtx.normal));
-			}
-
-			// Covert xyz 16
-			if (drawMode == DrawMode::v12) {
-				vtx.XYZFlags.fXYZ[0] = int12_to_float(vtx.XYZFlags.iXYZ[0]);
-				vtx.XYZFlags.fXYZ[1] = int12_to_float(vtx.XYZFlags.iXYZ[1]);
-				vtx.XYZFlags.fXYZ[2] = int12_to_float(vtx.XYZFlags.iXYZ[2]);
-			}
-
-			const uint primReg = gifTag.tag.PRIM;
-			const GIFReg::GSPrim primPacked = *reinterpret_cast<const GIFReg::GSPrim*>(&primReg);
-
-			const uint skip = vtx.XYZFlags.flags & 0x8000;
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing vertex: {}, drawMode: {}, primPacked: 0x{:x}, nloop: 0x{:x}, skip: 0x{:x}", i, (int)drawMode, primReg, gifTag.nLoop, skip);
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing vertex: {}, (S: {} T: {} Q: {}) (R: {} G: {} B: {} A: {}) (X: {} Y: {} Z: {} Skip: {})\n",
-				i, vtx.STQ.ST[0], vtx.STQ.ST[1], vtx.STQ.Q, vtx.RGBA[0], vtx.RGBA[1], vtx.RGBA[2], vtx.RGBA[3], vtx.XYZFlags.fXYZ[0], vtx.XYZFlags.fXYZ[1], vtx.XYZFlags.fXYZ[2], vtx.XYZFlags.flags);
-
-			Renderer::KickVertex(vtx, primPacked, skip, pSimpleMesh->GetVertexBufferData());
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Kick complete vtx tail: 0x{:x} index tail: 0x{:x}",
-				pSimpleMesh->GetVertexBufferData().GetVertexTail(), pSimpleMesh->GetVertexBufferData().GetIndexTail());
-
-			pVtx += 0x30;
-			pNormal += 0x10;
-		};
-	};
-
-	uint partialMeshSectionCount = pStrip->meshCount % 3;
-	ushort fullMeshSectionCount = pStrip->meshCount - partialMeshSectionCount;
-
-	MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip partialMeshSectionCount: {}, fullMeshSectionCount: {}", partialMeshSectionCount, fullMeshSectionCount);
-
-	if ((pStrip->flags & 4) == 0) {
-		bool bCompletedPartial;
-
-		while (bCompletedPartial = partialMeshSectionCount != 0, partialMeshSectionCount = partialMeshSectionCount - 1, bCompletedPartial) {
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing partial mesh section {}", partialMeshSectionCount);
-
-			VU1Emu::ProcessVifList((edpkt_data*)pVifList, false);
-			AddVertices();
-			pVifList = pVifList + incPacketSize * 0x10;
-		}
-
-		for (; fullMeshSectionCount != 0; fullMeshSectionCount = fullMeshSectionCount + -3) {
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing full mesh section {}", fullMeshSectionCount);
-
-			char* pVifListB = pVifList + incPacketSize * 0x10;
-			char* pVifListC = pVifList + incPacketSize * 0x20;
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing full mesh section A");
-			VU1Emu::ProcessVifList((edpkt_data*)pVifList, false);
-			AddVertices();
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing full mesh section B");
-			VU1Emu::ProcessVifList((edpkt_data*)pVifListB, false);
-			AddVertices();
-
-			MESH_LOG_TRACE(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing full mesh section C");
-			VU1Emu::ProcessVifList((edpkt_data*)pVifListC, false);
-			AddVertices();
-
-			pVifList = pVifList + incPacketSize * 0x30;
-		}
-	}
-}
-
 void Renderer::Kya::G3D::Cluster::ProcessStrip(ed_3d_strip* pStrip, const int stripIndex)
 {
 	assert(pStrip);
@@ -359,7 +232,7 @@ void Renderer::Kya::G3D::Cluster::ProcessStrip(ed_3d_strip* pStrip, const int st
 	strip.pStrip = pStrip;
 	strip.pParent = this;
 
-	const Gif_Tag gifTag  = ExtractGifTagFromVifList(pStrip);
+	const Gif_Tag gifTag = ExtractGifTagFromVifList(pStrip);
 
 	MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Cluster::ProcessStrip Processing strip gifTag: NLOOP 0x{:x} NREG 0x{:x} PRIM 0x{:x}", (uint)gifTag.tag.NLOOP, (uint)gifTag.tag.NREG, (uint)gifTag.tag.PRIM);
 	const uint primReg = gifTag.tag.PRIM;
@@ -577,8 +450,6 @@ void Renderer::Kya::G3D::ProcessCluster(ed_g3d_cluster* pCluster)
 			pHashCode++;
 		}
 	}
-
-	//assert(bProcessedStrip);
 }
 
 void Renderer::Kya::G3D::ProcessCSTA()
@@ -628,7 +499,7 @@ const Renderer::Kya::G3D::Strip* Renderer::Kya::MeshLibrary::FindStrip(const ed_
 		assert(gStripCache.find(pStrip) != gStripCache.end());
 		return gStripCache[pStrip];
 	}
-	
+
 	int hierarchyIndex = 0;
 	int lodIndex = 0;
 	int stripIndex = 0;
@@ -663,7 +534,7 @@ void Renderer::Kya::MeshLibrary::RenderNode(const edNODE* pNode) const
 	const G3D::Strip* pRendererStrip = FindStrip(pStrip);
 	assert(pRendererStrip);
 
-	if (pRendererStrip && pRendererStrip->pSimpleMesh) {	
+	if (pRendererStrip && pRendererStrip->pSimpleMesh) {
 		Renderer::RenderMesh(pRendererStrip->pSimpleMesh.get(), pNode->header.typeField.flags);
 	}
 	else {
