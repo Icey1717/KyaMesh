@@ -6,9 +6,14 @@
 #include "port.h"
 #include "port/vu1_emu.h"
 
+#ifdef LOG_SUPPORT
 #define MESH_LOG(level, format, ...) MY_LOG_CATEGORY("MeshLibrary", level, format, ##__VA_ARGS__)
 //#define MESH_LOG_TRACE(level, format, ...) MY_LOG_CATEGORY("MeshLibrary", level, format, ##__VA_ARGS__)
 #define MESH_LOG_TRACE(level, format, ...)
+#else
+#define MESH_LOG(level, format, ...)
+#define MESH_LOG_TRACE(level, format, ...)
+#endif
 
 namespace Renderer
 {
