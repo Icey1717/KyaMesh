@@ -1,5 +1,6 @@
 #include "Mesh.h"
 #include "ed3D.h"
+#include "edList.h"
 #include "Log.h"
 #include "renderer.h"
 #include "port.h"
