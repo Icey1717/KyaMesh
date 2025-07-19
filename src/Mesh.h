@@ -27,7 +27,6 @@ namespace Renderer
 			struct Strip
 			{
 				void PreProcessVertices();
-				void KickVertices() const;
 
 				ed_3d_strip* pStrip = nullptr;
 				void* pParent = nullptr;
@@ -116,8 +115,8 @@ namespace Renderer
 			inline int GetMeshCount() const { return gMeshes.size(); }
 
 			const G3D::Strip* FindStrip(const ed_3d_strip* pStrip) const;
-		private:
 			static void AddMesh(ed_g3d_manager* pManager, std::string name);
+		private:
 
 			std::vector<G3D> gMeshes;
 		};
