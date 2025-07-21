@@ -114,6 +114,8 @@ namespace Renderer
 
 			inline int GetMeshCount() const { return gMeshes.size(); }
 
+			inline void Clear() { gMeshes.clear(); }
+
 			const G3D::Strip* FindStrip(const ed_3d_strip* pStrip) const;
 			static void AddMesh(ed_g3d_manager* pManager, std::string name);
 		private:
