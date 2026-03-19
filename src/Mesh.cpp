@@ -1,5 +1,6 @@
 #include "Mesh.h"
 #include "ed3D.h"
+#include "ed3D/ed3DG3D.h"
 #include "edList.h"
 #include "Log.h"
 #include "renderer.h"
@@ -48,7 +49,7 @@ namespace Renderer
 
 			assert(pPkt[1].asU32[3] == gGifTagCopyCode);
 
-			uint8_t* const pGifPkt = LOAD_SECTION_CAST(uint8_t*, pPkt[1].asU32[1]);
+			uint8_t* const pGifPkt = LOAD_POINTER_CAST(uint8_t*, pPkt[1].asU32[1]);
 			Gif_Tag gifTag;
 			gifTag.setTag(pGifPkt, true);
 			return gifTag;
@@ -141,8 +142,8 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 
 	static_assert(sizeof(TextureData) == 4);
 
-	VertexColor* pRgba = LOAD_SECTION_CAST(VertexColor*, pStrip->pColorBuf);
-	TextureData* pStq = LOAD_SECTION_CAST(TextureData*, pStrip->pSTBuf);
+	VertexColor* pRgba = LOAD_POINTER_CAST(VertexColor*, pStrip->pColorBuf);
+	TextureData* pStq = LOAD_POINTER_CAST(TextureData*, pStrip->pSTBuf);
 	pStq += 4;
 
 	// This increases by 2 every loop because we start the next vtx at the end of the previous vtx.
@@ -169,7 +170,7 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 			vtx.STQ.Q = 1.0f;
 
 			if (pStrip->pNormalBuf) {
-				edVertexNormal* pNormal = LOAD_SECTION_CAST(edVertexNormal*, pStrip->pNormalBuf);
+				edVertexNormal* pNormal = LOAD_POINTER_CAST(edVertexNormal*, pStrip->pNormalBuf);
 
 				vtx.normal.fNormal[0] = int15_to_float(pNormal[adjustedIndex].x);
 				vtx.normal.fNormal[1] = int15_to_float(pNormal[adjustedIndex].y);
@@ -191,7 +192,7 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 					int16_t flags;
 				};
 
-				Vertex12* pVertex = LOAD_SECTION_CAST(Vertex12*, pStrip->pVertexBuf);
+				Vertex12* pVertex = LOAD_POINTER_CAST(Vertex12*, pStrip->pVertexBuf);
 
 				vtx.XYZFlags.fXYZ[0] = int12_to_float(pVertex[adjustedIndex].x);
 				vtx.XYZFlags.fXYZ[1] = int12_to_float(pVertex[adjustedIndex].y);
@@ -199,7 +200,7 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 				vtx.XYZFlags.flags = pVertex[adjustedIndex].flags;
 			}
 			else {
-				GSVertexUnprocessed::Vertex* pVertex = LOAD_SECTION_CAST(GSVertexUnprocessed::Vertex*, pStrip->pVertexBuf);
+				GSVertexUnprocessed::Vertex* pVertex = LOAD_POINTER_CAST(GSVertexUnprocessed::Vertex*, pStrip->pVertexBuf);
 				vtx.XYZFlags = pVertex[adjustedIndex];
 			}
 
@@ -310,14 +311,14 @@ void Renderer::Kya::G3D::Lod::ProcessObject(ed_g3d_object* pObject, const int he
 	object.pParent = this;
 
 	if (pObject->p3DData) {
-		ed_3d_strip* pStrip = LOAD_SECTION_CAST(ed_3d_strip*, pObject->p3DData);
+		ed_3d_strip* pStrip = LOAD_POINTER_CAST(ed_3d_strip*, pObject->p3DData);
 		int stripIndex = 0;
 
 		while (stripIndex < pObject->stripCount) {
 			MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Hierarchy::Lod::ProcessObject Processing strip: {}", stripIndex);
 
 			object.ProcessStrip(pStrip, heirarchyIndex, lodIndex, stripIndex);
-			pStrip = LOAD_SECTION_CAST(ed_3d_strip*, pStrip->pNext);
+			pStrip = LOAD_POINTER_CAST(ed_3d_strip*, pStrip->pNext);
 			stripIndex++;
 		}
 
@@ -334,10 +335,10 @@ void Renderer::Kya::G3D::Hierarchy::ProcessLod(ed3DLod* pLod, const int heirarch
 		lod.pLod = pLod;
 		lod.pParent = this;
 
-		ed_hash_code* pHash = LOAD_SECTION_CAST(ed_hash_code*, pLod->pObj);
+		ed_hash_code* pHash = LOAD_POINTER_CAST(ed_hash_code*, pLod->pObj);
 		MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Hierarchy::ProcessLod Processing lod: {}", pHash->hash.ToString());
 
-		ed_Chunck* pOBJ = LOAD_SECTION_CAST(ed_Chunck*, pHash->pData);
+		ed_Chunck* pOBJ = LOAD_POINTER_CAST(ed_Chunck*, pHash->pData);
 
 		if (pOBJ) {
 			MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Hierarchy::ProcessLod Object chunk header: {}", pOBJ->GetHeaderString());
@@ -411,8 +412,8 @@ void Renderer::Kya::G3D::ProcessCluster(ed_g3d_cluster* pCluster)
 	bool bProcessedStrip = false;
 
 	if ((stripCount != 0) && (bProcessedStrip = true, stripCount != 0)) {
-		ed_Chunck* pMBNK = LOAD_SECTION_CAST(ed_Chunck*, pCluster->pMBNK);
-		ed_3d_strip* p3DStrip = LOAD_SECTION_CAST(ed_3d_strip*, pCluster->p3DStrip);
+		ed_Chunck* pMBNK = LOAD_POINTER_CAST(ed_Chunck*, pCluster->pMBNK);
+		ed_3d_strip* p3DStrip = LOAD_POINTER_CAST(ed_3d_strip*, pCluster->p3DStrip);
 
 		uint stripIndex = 0;
 
@@ -420,7 +421,7 @@ void Renderer::Kya::G3D::ProcessCluster(ed_g3d_cluster* pCluster)
 			MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Hierarchy::Lod::ProcessObject Processing strip: {}", stripIndex);
 
 			cluster.ProcessStrip(p3DStrip, stripIndex);
-			p3DStrip = LOAD_SECTION_CAST(ed_3d_strip*, p3DStrip->pNext);
+			p3DStrip = LOAD_POINTER_CAST(ed_3d_strip*, p3DStrip->pNext);
 			stripIndex++;
 		}
 
@@ -444,7 +445,7 @@ void Renderer::Kya::G3D::ProcessCluster(ed_g3d_cluster* pCluster)
 		for (int i = 0; i < clusterHierCount; i++) {
 			MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::ProcessCluster Processing cluster hierarchy: {}", pHashCode->hash.ToString());
 
-			ed_Chunck* pHIER = LOAD_SECTION_CAST(ed_Chunck*, pHashCode->pData);
+			ed_Chunck* pHIER = LOAD_POINTER_CAST(ed_Chunck*, pHashCode->pData);
 			assert(pHIER->hash == HASH_CODE_HIER);
 
 			ed_g3d_hierarchy* pHierarchy = reinterpret_cast<ed_g3d_hierarchy*>(pHIER + 1);
