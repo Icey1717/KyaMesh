@@ -204,7 +204,7 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 				vtx.XYZFlags = pVertex[adjustedIndex];
 			}
 
-			const uint primReg = firstGifTag.tag.PRIM;
+			const uint64_t primReg = firstGifTag.tag.PRIM;
 			const GIFReg::GSPrim primPacked = *reinterpret_cast<const GIFReg::GSPrim*>(&primReg);
 
 			const uint skip = vtx.XYZFlags.flags & 0x8000;
@@ -242,7 +242,7 @@ void Renderer::Kya::G3D::Cluster::ProcessStrip(ed_3d_strip* pStrip, const int st
 	const Gif_Tag gifTag = ExtractGifTagFromVifList(pStrip);
 
 	MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Cluster::ProcessStrip Processing strip gifTag: NLOOP 0x{:x} NREG 0x{:x} PRIM 0x{:x}", (uint)gifTag.tag.NLOOP, (uint)gifTag.tag.NREG, (uint)gifTag.tag.PRIM);
-	const uint primReg = gifTag.tag.PRIM;
+	const uint64_t primReg = gifTag.tag.PRIM;
 	const GIFReg::GSPrim prim = *reinterpret_cast<const GIFReg::GSPrim*>(&primReg);
 
 	// strip everything before the last forward slash
@@ -280,7 +280,7 @@ void Renderer::Kya::G3D::Object::ProcessStrip(ed_3d_strip* pStrip, const int hei
 	Gif_Tag gifTag = ExtractGifTagFromVifList(pStrip);
 
 	MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::ProcessStrip Processing strip gifTag: NLOOP 0x{:x} NREG 0x{:x} PRIM 0x{:x}", (uint)gifTag.tag.NLOOP, (uint)gifTag.tag.NREG, (uint)gifTag.tag.PRIM);
-	const uint primReg = gifTag.tag.PRIM;
+	const uint64_t primReg = gifTag.tag.PRIM;
 	const GIFReg::GSPrim prim = *reinterpret_cast<const GIFReg::GSPrim*>(&primReg);
 
 	// strip everything before the last forward slash
