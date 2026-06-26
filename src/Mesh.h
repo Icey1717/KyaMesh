@@ -26,11 +26,13 @@ namespace Renderer
 
 			struct Strip
 			{
-				void PreProcessVertices();
+				void PreProcessVertices(int textureLayerIndex, SimpleMesh* pMesh) const;
+				SimpleMesh* GetSimpleMesh(int textureLayerIndex) const;
 
 				ed_3d_strip* pStrip = nullptr;
 				void* pParent = nullptr;
 				std::unique_ptr<SimpleMesh> pSimpleMesh;
+				mutable std::vector<std::unique_ptr<SimpleMesh>> layerSimpleMeshes;
 			};
 
 			struct Hierarchy {
@@ -100,7 +102,7 @@ namespace Renderer
 			using ForEachMesh = std::function<void(const G3D&)>;
 
 			static void Init();
-			void RenderNode(const edNODE* pNode) const;
+			void RenderNode(const edNODE* pNode, int textureLayerIndex = 0) const;
 			void CacheDlistStrip(ed_3d_strip* pStrip);
 
 			// Debug

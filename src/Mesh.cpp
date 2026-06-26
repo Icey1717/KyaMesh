@@ -92,19 +92,19 @@ namespace Renderer
 
 constexpr const char* gDebugMeshName = "SECT1.g3d_17_0_0";
 
-void Renderer::Kya::G3D::Strip::PreProcessVertices()
+void Renderer::Kya::G3D::Strip::PreProcessVertices(int textureLayerIndex, SimpleMesh* pMesh) const
 {
-	MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::Strip::PreProcessVertices Processing strip name: {}", pSimpleMesh->GetName());
+	MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::Strip::PreProcessVertices Processing strip name: {}", pMesh->GetName());
 
-	if (pSimpleMesh->GetName() == gDebugMeshName) {
-		MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::Strip::PreProcessVertices Processing strip name: {}", pSimpleMesh->GetName());
+	if (pMesh->GetName() == gDebugMeshName) {
+		MESH_LOG(LogLevel::Info, "Renderer::Kya::G3D::Object::Strip::PreProcessVertices Processing strip name: {}", pMesh->GetName());
 	}
 
 	const Gif_Tag firstGifTag = ExtractGifTagFromVifList(pStrip);
 
 	const DrawMode drawMode = GetDrawMode(pStrip);
 
-	auto& vertexBufferData = pSimpleMesh->GetVertexBufferData();
+	auto& vertexBufferData = pMesh->GetVertexBufferData();
 
 	// Assume that the first gif tag has the largest vtx count.
 	int totalVtxCount = 0;
@@ -146,6 +146,13 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 	TextureData* pStq = LOAD_POINTER_CAST(TextureData*, pStrip->pSTBuf);
 	pStq += 4;
 
+	TextureData* pLayerStq = pStq;
+	if (textureLayerIndex > 0) {
+		int* pSTHeader = LOAD_POINTER_CAST(int*, pStrip->pSTBuf);
+		const int stLayerStride = pSTHeader[1] * 4;
+		pLayerStq = reinterpret_cast<TextureData*>(pSTHeader + textureLayerIndex * stLayerStride + 4);
+	}
+
 	// This increases by 2 every loop because we start the next vtx at the end of the previous vtx.
 	int vtxOffset = 0;
 
@@ -165,8 +172,9 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 			vtx.RGBA[2] = pRgba[index].b;
 			vtx.RGBA[3] = pRgba[index].a;
 
-			vtx.STQ.ST[0] = pStq[index].s;
-			vtx.STQ.ST[1] = pStq[index].t;
+			const int stIndex = textureLayerIndex == 0 ? index : i + j * 0x14;
+			vtx.STQ.ST[0] = pLayerStq[stIndex].s;
+			vtx.STQ.ST[1] = pLayerStq[stIndex].t;
 			vtx.STQ.Q = 1.0f;
 
 			if (pStrip->pNormalBuf) {
@@ -227,6 +235,29 @@ void Renderer::Kya::G3D::Strip::PreProcessVertices()
 	//assert(internalVertexBuffer.GetIndexTail() > 0);
 }
 
+Renderer::SimpleMesh* Renderer::Kya::G3D::Strip::GetSimpleMesh(int textureLayerIndex) const
+{
+	if (textureLayerIndex <= 0) {
+		return pSimpleMesh.get();
+	}
+
+	const size_t layerIndex = static_cast<size_t>(textureLayerIndex);
+	if (layerSimpleMeshes.size() <= layerIndex) {
+		layerSimpleMeshes.resize(layerIndex + 1);
+	}
+
+	if (!layerSimpleMeshes[layerIndex]) {
+		std::string meshName = pSimpleMesh->GetName();
+		meshName += "_layer_";
+		meshName += std::to_string(textureLayerIndex);
+
+		layerSimpleMeshes[layerIndex] = std::make_unique<SimpleMesh>(meshName, pSimpleMesh->GetPrim());
+		PreProcessVertices(textureLayerIndex, layerSimpleMeshes[layerIndex].get());
+	}
+
+	return layerSimpleMeshes[layerIndex].get();
+}
+
 void Renderer::Kya::G3D::Cluster::ProcessStrip(ed_3d_strip* pStrip, const int stripIndex)
 {
 	assert(pStrip);
@@ -252,7 +283,7 @@ void Renderer::Kya::G3D::Cluster::ProcessStrip(ed_3d_strip* pStrip, const int st
 
 	strip.pSimpleMesh = std::make_unique<SimpleMesh>(meshName, prim);
 
-	strip.PreProcessVertices();
+	strip.PreProcessVertices(0, strip.pSimpleMesh.get());
 }
 
 void Renderer::Kya::G3D::Cluster::CacheStrips()
@@ -295,7 +326,7 @@ void Renderer::Kya::G3D::Object::ProcessStrip(ed_3d_strip* pStrip, const int hei
 
 	strip.pSimpleMesh = std::make_unique<SimpleMesh>(meshName, prim);
 
-	strip.PreProcessVertices();
+	strip.PreProcessVertices(0, strip.pSimpleMesh.get());
 }
 
 void Renderer::Kya::G3D::Hierarchy::Lod::Object::CacheStrips()
@@ -534,18 +565,24 @@ const Renderer::Kya::G3D::Strip* Renderer::Kya::MeshLibrary::FindStrip(const ed_
 	return nullptr;
 }
 
-void Renderer::Kya::MeshLibrary::RenderNode(const edNODE* pNode) const
+void Renderer::Kya::MeshLibrary::RenderNode(const edNODE* pNode, int textureLayerIndex) const
 {
 	ed_3d_strip* pStrip = reinterpret_cast<ed_3d_strip*>(pNode->pData);
 
 	const G3D::Strip* pRendererStrip = FindStrip(pStrip);
 	assert(pRendererStrip);
 
-	if (pRendererStrip && pRendererStrip->pSimpleMesh) {
-		Renderer::RenderMesh(pRendererStrip->pSimpleMesh.get(), pNode->header.typeField.flags);
+	if (pRendererStrip) {
+		Renderer::SimpleMesh* pSimpleMesh = pRendererStrip->GetSimpleMesh(textureLayerIndex);
+		if (pSimpleMesh) {
+			Renderer::RenderMesh(pSimpleMesh, pNode->header.typeField.flags);
+		}
+		else {
+			MESH_LOG(LogLevel::Error, "Renderer::Kya::MeshLibrary::RenderNode no simple mesh available for rendering layer {}", textureLayerIndex);
+		}
 	}
 	else {
-		MESH_LOG(LogLevel::Error, "Renderer::Kya::MeshLibrary::RenderNode Strip not found or no simple mesh available for rendering");
+		MESH_LOG(LogLevel::Error, "Renderer::Kya::MeshLibrary::RenderNode Strip not found");
 	}
 }
 
